@@ -5,6 +5,7 @@ import { PATH_COORDS, STRETCH_COORDS } from '../../lib/ludo-board-layout';
 import { cn } from '../../lib/utils';
 import { movePiece } from '../../lib/ludo-engine';
 import { playSubtleSound } from '../../lib/audio';
+import confetti from 'canvas-confetti';
 
 const PIECE_COLORS: Record<PlayerColor, string> = {
   red: 'bg-rose-500 shadow-rose-500/50',
@@ -32,7 +33,17 @@ function getCoordsForPiece(player: {uid: string, color: PlayerColor}, piece: Pie
     } else if (piece.status === 'home_stretch') {
       coords = STRETCH_COORDS[player.color][piece.position];
     } else if (piece.status === 'finished') {
-      coords = { x: 7, y: 7 };
+      // Offset slightly towards the triangle of their color
+      const offsets = {
+        red: [{x: 6.7, y: 6.7}, {x: 6.7, y: 7.3}, {x: 6.4, y: 7.0}, {x: 6.2, y: 7.0}],
+        green: [{x: 6.7, y: 6.7}, {x: 7.3, y: 6.7}, {x: 7.0, y: 6.4}, {x: 7.0, y: 6.2}],
+        amber: [{x: 7.3, y: 6.7}, {x: 7.3, y: 7.3}, {x: 7.6, y: 7.0}, {x: 7.8, y: 7.0}],
+        cyan: [{x: 6.7, y: 7.3}, {x: 7.3, y: 7.3}, {x: 7.0, y: 7.6}, {x: 7.0, y: 7.8}],
+      };
+      // fallback to object map for backward compatibility with 'yellow'/'blue' values
+      const colorOffsets = offsets[player.color as keyof typeof offsets] || 
+        (player.color === 'yellow' ? offsets.amber : offsets.cyan);
+      coords = colorOffsets[piece.id] || { x: 7, y: 7 };
     }
     return coords;
 }
@@ -58,9 +69,9 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
         if (prev.position === targetPiece.position && prev.status === targetPiece.status) {
             // Only update non-positional properties if it hasn't moved, so we don't cancel a running movement animation
             controls.start({
-                scale: targetPiece.status === 'finished' ? 0.4 : (isMyTurn ? 1.15 : 1),
-                opacity: targetPiece.status === 'finished' ? 0 : 1,
-                z: isMyTurn ? 30 : 10,
+                scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+                opacity: 1,
+                z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
                 x: `calc(-50% + ${offsetX}px)`,
                 y: `calc(-50% + ${offsetY}px)`,
                 transition: { duration: 0.3 }
@@ -136,24 +147,38 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
                 }
                 
                 // Final scale
+                if (targetPiece.status === 'finished') {
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }
                 controls.start({
-                    scale: targetPiece.status === 'finished' ? 0.4 : (isMyTurn ? 1.15 : 1),
-                    opacity: targetPiece.status === 'finished' ? 0 : 1,
-                    z: isMyTurn ? 30 : 10,
+                    scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+                    opacity: 1,
+                    z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
                 });
                 return;
             }
             
             // Default straight animation (e.g. captured and returning to base)
             const defaultCoords = getCoordsForPiece(player, targetPiece);
+            if (targetPiece.status === 'finished' && prev.status !== 'finished') {
+                confetti({
+                    particleCount: 100,
+                    spread: 70,
+                    origin: { y: 0.6 }
+                });
+            }
             controls.start({
                 left: `${((defaultCoords.x + 0.5) / 15) * 100}%`,
                 top: `${((defaultCoords.y + 0.5) / 15) * 100}%`,
                 x: `calc(-50% + ${offsetX}px)`,
                 y: `calc(-50% + ${offsetY}px)`,
-                scale: targetPiece.status === 'finished' ? 0.4 : (isMyTurn ? 1.15 : 1),
-                opacity: targetPiece.status === 'finished' ? 0 : 1,
-                z: isMyTurn ? 30 : 10,
+                scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+                opacity: 1,
+                z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
                 transition: { duration: 0.3 }
             });
             
@@ -174,9 +199,9 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
               top: `${((initialCoords.y + 0.5) / 15) * 100}%`,
               x: `calc(-50% + ${offsetX}px)`,
               y: `calc(-50% + ${offsetY}px)`,
-              scale: targetPiece.status === 'finished' ? 0.4 : (isMyTurn ? 1.15 : 1),
-              opacity: targetPiece.status === 'finished' ? 0 : 1,
-              z: isMyTurn ? 30 : 10,
+              scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+              opacity: 1,
+              z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
             }}
             className={cn(
               "absolute w-[5.5%] h-[5.5%] z-10 [transform-style:preserve-3d] pointer-events-auto",

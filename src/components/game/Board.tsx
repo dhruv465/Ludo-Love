@@ -172,7 +172,7 @@ export function Board({ pieces, players, currentTurn, localPlayerUid, diceRolled
         "relative aspect-square w-full max-w-[560px] rounded-2xl p-2 md:p-3 overflow-hidden",
         config.boardBg,
         theme === 'neon' && "border-slate-800"
-    )}>
+    )} style={{ marginBottom: '80px' }}>
       <div className={cn("grid grid-cols-15 grid-rows-15 w-full h-full border ring-1 ring-black/5", config.grid)}>
         {boardCells}
       </div>

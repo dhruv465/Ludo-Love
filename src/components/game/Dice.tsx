@@ -40,8 +40,8 @@ export function Dice({ value, isRolling, disabled, onClick, color }: DiceProps) 
       const target = targetRotations[value] || { x: 0, y: 0 };
       
       // Calculate smooth landing - 3D perspective
-      const tiltX = -20; 
-      const tiltY = 20;
+      const tiltX = -15; 
+      const tiltY = 15;
       
       const nextX = Math.ceil((rotation.x - target.x - tiltX) / 360) * 360 + target.x + tiltX;
       const nextY = Math.ceil((rotation.y - target.y - tiltY) / 360) * 360 + target.y + tiltY;

@@ -73,7 +73,17 @@ export function useGame(roomId: string, userUid?: string) {
     rollLockRef.current = true;
     setLocalRolling(true);
     
-    const diceValue = Math.floor(Math.random() * 6) + 1;
+    const piecesForLuck = game.pieces[uid] || [];
+    let diceValue = Math.floor(Math.random() * 6) + 1;
+    
+    // Slight luck boost if all pieces are in base
+    const allInBase = piecesForLuck.length > 0 && piecesForLuck.every(p => p.status === 'base');
+    if (allInBase && diceValue !== 6) {
+        // High chance to get a 6 to quickly get them into the game
+        if (Math.random() < 0.6) {
+            diceValue = 6;
+        }
+    }
     
     try {
         const gameRef = doc(db, 'rooms', roomId);
