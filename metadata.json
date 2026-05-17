@@ -1,0 +1,6 @@
+{
+  "name": "Ludo Love",
+  "description": "A private, couple-themed real-time Ludo game featuring personalized touches and smooth animations.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}

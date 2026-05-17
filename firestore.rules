@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    function isPlayerInRoom(roomData) {
+      return true; // Weakened for guest mode without Firebase Auth
+    }
+
+    function isValidUser(user) {
+      return user.keys().hasAll(['name', 'avatar']) &&
+             user.name is string && user.name.size() <= 50 &&
+             user.avatar is string;
+    }
+
+    function isValidRoom(room) {
+      return room.keys().hasAll(['status', 'player1', 'player2', 'updatedAt']) &&
+             room.status in ['waiting', 'playing', 'finished'];
+    }
+
+    match /users/{userId} {
+      allow get, list, create, update: if true;
+    }
+
+    match /matches/{matchId} {
+      allow read, create, update: if true;
+    }
+
+    match /rooms/{roomId} {
+      allow get, list, create, update: if true;
+    }
+  }
+}

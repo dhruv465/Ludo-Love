@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Display name." },
+        "avatar": { "type": "string", "description": "Avatar URL or identifier." },
+        "email": { "type": "string", "description": "User email (Private)." }
+      },
+      "required": ["name"]
+    },
+    "Piece": {
+      "title": "Piece",
+      "description": "Ludo piece position.",
+      "type": "object",
+      "properties": {
+        "index": { "type": "number", "description": "0-3 unique piece ID for player." },
+        "position": { "type": "number", "description": "-1 for base, 0-51 for board, 52-57 for home stretch." },
+        "status": { "type": "string", "enum": ["base", "board", "home_stretch", "finished"] }
+      }
+    },
+    "Player": {
+      "title": "Player",
+      "description": "Game participant data.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "color": { "type": "string" },
+        "ready": { "type": "boolean" }
+      }
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Ludo game room state.",
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["waiting", "playing", "finished"] },
+        "theme": { "type": "string", "enum": ["vibrant", "neon", "panda", "romantic"] },
+        "player1": { "$ref": "#/entities/Player" },
+        "player2": { "$ref": "#/entities/Player" },
+        "player3": { "$ref": "#/entities/Player" },
+        "player4": { "$ref": "#/entities/Player" },
+        "pieces": {
+          "type": "object",
+          "description": "Map of uid to array of Pieces."
+        },
+        "currentTurn": { "type": "string" },
+        "lastDiceValue": { "type": "number" },
+        "diceRolled": { "type": "boolean" },
+        "winner": { "type": "string" },
+        "messages": {
+          "type": "array",
+          "items": {
+             "type": "object",
+             "properties": {
+               "uid": { "type": "string" },
+               "text": { "type": "string" },
+               "type": { "type": "string", "enum": ["text", "reaction", "moment"] },
+               "timestamp": { "type": "number" }
+             }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Historical record of a finished game.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string" },
+        "winner": { "type": "string" },
+        "players": { "type": "array" },
+        "theme": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Public/Private user profiles."
+    },
+    "/rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Game room data holding Ludo state."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "History of completed games."
+    }
+  }
+}

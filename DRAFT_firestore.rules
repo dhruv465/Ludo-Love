@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // User helpers
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    
+    // Room helpers
+    function isPlayerInRoom(roomData) {
+      return isSignedIn() && (roomData.player1.uid == request.auth.uid || roomData.player2.uid == request.auth.uid);
+    }
+
+    // --- Validation Blueprints ---
+    function isValidUser(user) {
+      return user.keys().hasAll(['name', 'avatar']) &&
+             user.keys().size() <= 3 &&
+             user.name is string && user.name.size() <= 50 &&
+             user.avatar is string && user.avatar.size() <= 200;
+    }
+
+    function isValidRoom(room) {
+      return room.keys().hasAll(['status', 'player1', 'player2', 'updatedAt']) &&
+             room.status in ['waiting', 'playing', 'finished'] &&
+             room.player1.uid is string &&
+             room.player2.uid is string &&
+             room.updatedAt == request.time;
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false; // No blanket listing
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming());
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isPlayerInRoom(existing());
+      allow list: if isSignedIn() && (resource.data.player1.uid == request.auth.uid || resource.data.player2.uid == request.auth.uid);
+      
+      allow create: if isSignedIn() && isValidId(roomId) && isValidRoom(incoming()) && (
+        incoming().player1.uid == request.auth.uid || incoming().player2.uid == request.auth.uid
+      );
+
+      allow update: if (
+        isSignedIn() && 
+        isPlayerInRoom(existing()) && 
+        isValidRoom(incoming()) && (
+          // Action: Joining
+          (existing().status == 'waiting' && incoming().status == 'playing' && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['player2', 'status', 'updatedAt', 'pieces', 'currentTurn'])) ||
+          
+          // Action: Playing (Gameplay)
+          (existing().status == 'playing' && (
+            // Player making a move
+            (existing().currentTurn == request.auth.uid && 
+             incoming().diff(existing()).affectedKeys().hasOnly(['pieces', 'currentTurn', 'lastDiceValue', 'diceRolled', 'updatedAt', 'winner', 'status']))
+          ))
+        )
+      );
+    }
+  }
+}
