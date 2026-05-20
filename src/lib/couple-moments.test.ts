@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  canCreateCoupleMomentForPlayer,
   createCoupleMoment,
   formatMomentMessage,
   getMomentMood,
@@ -21,6 +22,13 @@ test('every event returns configured reward value', () => {
   assert.equal(getMomentReward('capture'), 8);
   assert.equal(getMomentReward('finish_piece'), 10);
   assert.equal(getMomentReward('victory'), 15);
+});
+
+test('couple moments are only created for non-bot players', () => {
+  assert.equal(canCreateCoupleMomentForPlayer({ isBot: true }), false);
+  assert.equal(canCreateCoupleMomentForPlayer({ isBot: false }), true);
+  assert.equal(canCreateCoupleMomentForPlayer({}), true);
+  assert.equal(canCreateCoupleMomentForPlayer(null), false);
 });
 
 test('moment creation is deterministic enough for persistence shape', () => {

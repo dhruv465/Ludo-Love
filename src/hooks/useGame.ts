@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { doc, getDoc, increment, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, increment, onSnapshot, runTransaction, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { createCoupleMoment, formatMomentMessage } from '../lib/couple-moments';
+import { canCreateCoupleMomentForPlayer, createCoupleMoment, formatMomentMessage } from '../lib/couple-moments';
 import { CoupleMoment, GameState, Message, Player } from '../lib/ludo-types';
 import {
   chooseBestLegalMove,
@@ -187,7 +187,7 @@ export function useGame(roomId: string, userUid?: string) {
           const noLegalMoves = legalMoves.length === 0;
           const shouldPassTurn = turnResult.cancelsMove || noLegalMoves;
           const nextTurnUid = noLegalMoves ? getNextPlayerUid(uid, latestPlayers) : shouldPassTurn ? turnResult.nextTurnUid : uid;
-          const nextMoment = diceValue === 6 && !turnResult.cancelsMove
+          const nextMoment = diceValue === 6 && !turnResult.cancelsMove && canCreateCoupleMomentForPlayer(latestPlayer)
               ? createCoupleMoment({
                 event: 'roll_six',
                 mood: latestRoom.momentMood,
@@ -287,7 +287,7 @@ export function useGame(roomId: string, userUid?: string) {
               : landedOnSafeSquare
                 ? 'safe_square'
                 : null;
-        const nextMoment = nextMomentEvent
+        const nextMoment = nextMomentEvent && canCreateCoupleMomentForPlayer(player)
           ? createCoupleMoment({
               event: nextMomentEvent,
               mood: latestRoom.momentMood,
@@ -321,32 +321,10 @@ export function useGame(roomId: string, userUid?: string) {
 
       if (appliedMoveEffects.capturedVictimName) {
         await sendMessage(uid, appliedMoveEffects.playerName, `Captured ${appliedMoveEffects.capturedVictimName}'s piece! ⚡`, 'moment');
-
-        try {
-          const userRef = doc(db, 'users', uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            const currentPoints = userSnap.data().points || 0;
-            await updateDoc(userRef, { points: currentPoints + 10 });
-          }
-        } catch (e) {
-          console.error("Failed to award capture points:", e);
-        }
       }
 
       if (appliedMoveEffects.isWinner) {
         await sendMessage(uid, appliedMoveEffects.playerName, `Victory! Completed the journey 🏆`, 'moment');
-
-        try {
-          const userRef = doc(db, 'users', uid);
-          const userSnap = await getDoc(userRef);
-          if (userSnap.exists()) {
-            const currentPoints = userSnap.data().points || 0;
-            await updateDoc(userRef, { points: currentPoints + 50 });
-          }
-        } catch (e) {
-          console.error("Failed to award victory points:", e);
-        }
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `rooms/${roomId}`);
@@ -427,19 +405,19 @@ export function useGame(roomId: string, userUid?: string) {
     const submittedAt = Date.now();
 
     try {
-      const claimSucceeded = await runTransaction(db, async (transaction) => {
+      const rewardCoins = await runTransaction(db, async (transaction) => {
         const roomSnap = await transaction.get(gameRef);
-        if (!roomSnap.exists()) return false;
+        if (!roomSnap.exists()) return null;
 
         const latestRoom = roomSnap.data() as GameState;
         const currentMoment = latestRoom.activeMoment;
-        if (!currentMoment || currentMoment.id !== expectedMoment.id || currentMoment.playerUid !== uid) return false;
+        if (!currentMoment || currentMoment.id !== expectedMoment.id || currentMoment.playerUid !== uid) return null;
 
         const player = [latestRoom.player1, latestRoom.player2, latestRoom.player3, latestRoom.player4].find(p => p?.uid === uid);
         const momentMessage: Message = {
           uid,
           sender: player?.name || 'Player',
-          text: formatMomentMessage(expectedMoment, trimmed),
+          text: formatMomentMessage(currentMoment, trimmed),
           type: 'moment',
           timestamp: submittedAt,
         };
@@ -450,13 +428,13 @@ export function useGame(roomId: string, userUid?: string) {
           updatedAt: serverTimestamp(),
         });
 
-        return true;
+        return currentMoment.rewardCoins;
       });
 
-      if (claimSucceeded) {
+      if (rewardCoins !== null) {
         try {
           const userRef = doc(db, 'users', uid);
-          await updateDoc(userRef, { points: increment(expectedMoment.rewardCoins) });
+          await updateDoc(userRef, { points: increment(rewardCoins) });
         } catch (e) {
           console.error('Failed to award moment points:', e);
         }

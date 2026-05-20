@@ -1,4 +1,4 @@
-import { CoupleMoment, MomentEvent, MomentMood } from './ludo-types';
+import { CoupleMoment, MomentEvent, MomentMood, Player } from './ludo-types';
 
 export const DEFAULT_MOMENT_MOOD: MomentMood = 'romantic';
 
@@ -109,6 +109,10 @@ export function createCoupleMoment(input: {
     playerUid: input.playerUid,
     createdAt: now,
   };
+}
+
+export function canCreateCoupleMomentForPlayer(player: Pick<Player, 'isBot'> | null | undefined): boolean {
+  return !!player && !player.isBot;
 }
 
 export function formatMomentMessage(moment: CoupleMoment, answer: string): string {
