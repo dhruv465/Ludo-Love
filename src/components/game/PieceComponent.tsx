@@ -48,6 +48,7 @@ interface PieceComponentProps {
 export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, offsetY, onClick }: PieceComponentProps) {
     const controls = useAnimation();
     const prevTargetRef = useRef(targetPiece);
+    const prevColorRef = useRef(player.color);
     const movementKey = `${targetPiece.status}:${targetPiece.position}`;
     const isOnSafeSquare = isSafeBoardPiece(player.color, targetPiece);
     const offsetStyle = {
@@ -57,15 +58,27 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
 
     useEffect(() => {
         const prev = prevTargetRef.current;
+        const prevColor = prevColorRef.current;
         
-        if (prev.position === targetPiece.position && prev.status === targetPiece.status) {
+        if (prev.position === targetPiece.position && prev.status === targetPiece.status && prevColor === player.color) {
             return;
         }
 
         prevTargetRef.current = targetPiece;
+        prevColorRef.current = player.color;
         const landedOnSafeSquare = isSafeBoardPiece(player.color, targetPiece);
 
         const animateStepByStep = async () => {
+            if (prevColor !== player.color && prev.position === targetPiece.position && prev.status === targetPiece.status) {
+                const coords = getPieceCoords(player.color, targetPiece);
+                await controls.start({
+                    left: `${((coords.x + 0.5) / 15) * 100}%`,
+                    top: `${((coords.y + 0.5) / 15) * 100}%`,
+                    transition: { duration: 0.2 }
+                });
+                return;
+            }
+
             if (prev.status === 'base' && targetPiece.status === 'board') {
                 const coords = getPieceCoords(player.color, targetPiece);
                 await controls.start({
