@@ -1,25 +1,21 @@
-import React, { useState } from 'react';
-import { db } from '../../lib/firebase';
-import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { User } from 'firebase/auth';
+import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Heart, Play, Users, Smartphone, Zap, Palette, ArrowRight } from 'lucide-react';
-import { useAuth } from '../../hooks/useAuth';
-import { PlayerColor, GameTheme } from '../../lib/ludo-types';
+import { Zap, Palette, ArrowRight } from 'lucide-react';
+import { PlayerColor, GameTheme, MomentMood } from '../../lib/ludo-types';
 import { cn } from '../../lib/utils';
 
 interface LobbyProps {
-  user: User;
-  onCreate: (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean) => void | Promise<void>;
+  onCreate: (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean, momentMood: MomentMood) => void | Promise<void>;
   onJoin: (roomId: string) => void | Promise<void>;
 }
 
-export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
+export function Lobby({ onCreate, onJoin }: LobbyProps) {
   const [roomCode, setRoomCode] = useState('');
   const [loading, setLoading] = useState(false);
   
   const [selectedColor, setSelectedColor] = useState<PlayerColor>('red');
   const [selectedTheme, setSelectedTheme] = useState<GameTheme>('vibrant');
+  const [selectedMood, setSelectedMood] = useState<MomentMood>('romantic');
 
   const [playerCount, setPlayerCount] = useState(2);
   const [withBots, setWithBots] = useState(false);
@@ -27,7 +23,7 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
   const handleCreate = async () => {
     setLoading(true);
     try {
-      await onCreate(selectedColor, selectedTheme, playerCount, withBots);
+      await onCreate(selectedColor, selectedTheme, playerCount, withBots, selectedMood);
     } catch (e) {
       console.error(e);
     } finally {
@@ -54,6 +50,11 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
       { id: 'panda', label: 'Minimal Panda' },
       { id: 'romantic', label: 'Soft Classic' }
   ];
+  const moods: { id: MomentMood; label: string; helper: string }[] = [
+    { id: 'cute', label: 'Cute', helper: 'Sweet and wholesome' },
+    { id: 'romantic', label: 'Romantic', helper: 'Flirty and warm' },
+    { id: 'spicy', label: 'Spicy', helper: 'Bolder text prompts' },
+  ];
 
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[calc(100vh-64px-48px)] text-[#000]">
@@ -62,7 +63,7 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
         animate={{ scale: 1, opacity: 1 }}
         className="w-full max-w-xl space-y-8 bg-white p-10 rounded-[2.5rem] shadow-[0_32px_64px_-12px_rgba(244,63,94,0.1)] border border-rose-50 overflow-hidden relative"
       >
-        <div className="absolute top-0 inset-x-0 h-1bg-gradient-to-r from-rose-500 via-pink-500 to-emerald-500" />
+        <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 via-pink-500 to-emerald-500" />
         <div className="text-center space-y-2">
            <h2 className="text-4xl font-black text-gray-900 font-display">Ludo Love</h2>
            <p className="text-slate-400 font-medium tracking-tight">Play proper Ludo with friends or bots.</p>
@@ -131,6 +132,27 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
                     >
                        {themes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
                     </select>
+                 </div>
+                 <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Couple Mood</label>
+                    <div className="grid grid-cols-3 gap-2">
+                       {moods.map((mood) => (
+                          <button
+                            key={mood.id}
+                            type="button"
+                            onClick={() => setSelectedMood(mood.id)}
+                            className={cn(
+                              "rounded-2xl border px-2 py-3 text-left transition-all",
+                              selectedMood === mood.id
+                                ? "border-rose-400 bg-white shadow-md shadow-rose-100"
+                                : "border-rose-100 bg-white/70"
+                            )}
+                          >
+                            <span className="block text-[11px] font-black text-slate-800">{mood.label}</span>
+                            <span className="mt-1 block text-[9px] font-bold leading-tight text-slate-400">{mood.helper}</span>
+                          </button>
+                       ))}
+                    </div>
                  </div>
                  <button
                     onClick={handleCreate}

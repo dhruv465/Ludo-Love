@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { Lobby } from './components/game/Lobby';
 import { Board } from './components/game/Board';
@@ -14,8 +14,7 @@ import { Heart, Trophy, LogOut, Users, Camera, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './lib/firebase';
-import { PlayerColor, GameTheme } from './lib/ludo-types';
-import { StatsSidebar } from './components/game/Sidebars';
+import { PlayerColor, GameTheme, MomentMood } from './lib/ludo-types';
 import { History, MatchEntry } from './components/game/History';
 import { cn } from './lib/utils';
 import { collection, query, orderBy, limit, getDocs, addDoc } from 'firebase/firestore';
@@ -92,7 +91,7 @@ function GameContent() {
     }
   }, [game?.status, game?.winner]);
 
-  const createRoom = async (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean = false) => {
+  const createRoom = async (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean = false, momentMood: MomentMood = 'romantic') => {
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const roomRef = doc(db, 'rooms', roomId);
     
@@ -149,6 +148,8 @@ function GameContent() {
       ...players,
       status: withBot ? 'playing' : 'waiting',
       theme,
+      momentMood,
+      activeMoment: null,
       maxPlayers: playerCount,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -227,14 +228,14 @@ function GameContent() {
   if (!activeRoomId) {
     return (
       <div className="min-h-screen bg-[#FFF5F7] text-gray-900">
-        <header className="h-16 flex items-center justify-between px-8 bg-white border-b border-rose-100 shadow-sm shrink-0">
-           <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg transform rotate-3">
+        <header className="h-16 flex items-center justify-between px-4 sm:px-8 bg-white border-b border-rose-100 shadow-sm shrink-0">
+           <div className="flex min-w-0 items-center gap-3">
+              <div className="w-10 h-10 shrink-0 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg transform rotate-3">
                  <Heart className="w-6 h-6 text-white fill-white" />
               </div>
-              <h1 className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-pink-600 font-display">LUDO LOVE</h1>
+              <h1 className="min-w-0 truncate text-xl sm:text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-pink-600 font-display">LUDO LOVE</h1>
            </div>
-           <div className="flex items-center gap-4">
+           <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               <div className="hidden sm:flex flex-col items-end">
                  <span className="text-[10px] font-black text-rose-300 uppercase leading-none tracking-widest">Balance</span>
                  <span className="text-emerald-500 font-black text-lg">💰 {userData?.points || 0}</span>
@@ -248,7 +249,7 @@ function GameContent() {
               </button>
               <div className="flex items-center gap-2">
                  <img src={userData?.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`} className="w-8 h-8 rounded-full border border-rose-200" alt="" />
-                 <span className="text-sm font-bold text-slate-700">{userData?.name || 'Guest'}</span>
+                 <span className="hidden sm:inline max-w-32 truncate text-sm font-bold text-slate-700">{userData?.name || 'Guest'}</span>
               </div>
            </div>
         </header>
@@ -260,7 +261,6 @@ function GameContent() {
         </AnimatePresence>
 
         <Lobby 
-          user={user} 
           onCreate={createRoom}
           onJoin={joinRoom}
         />
@@ -297,6 +297,11 @@ function GameContent() {
 
                   <div className="bg-rose-50 p-6 rounded-3xl border-2 border-dashed border-rose-200">
                      <span className="text-4xl font-black tracking-widest text-rose-500 font-mono">{activeRoomId}</span>
+                  </div>
+
+                  <div className="rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3">
+                    <span className="block text-[9px] font-black uppercase tracking-widest text-rose-300">Couple Mood</span>
+                    <span className="text-sm font-black capitalize text-slate-800">{game.momentMood || 'romantic'}</span>
                   </div>
 
                   <div className="flex justify-center items-center gap-4 flex-wrap">
