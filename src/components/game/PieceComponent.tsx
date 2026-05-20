@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, useAnimation } from 'motion/react';
-import { PlayerColor, Piece, GameTheme } from '../../lib/ludo-types';
-import { PATH_COORDS, STRETCH_COORDS } from '../../lib/ludo-board-layout';
+import { PlayerColor, Piece, GameTheme, SAFE_ZONES, START_POSITIONS } from '../../lib/ludo-types';
+import { getPieceCoords } from '../../lib/ludo-board-layout';
 import { cn } from '../../lib/utils';
 import { movePiece } from '../../lib/ludo-engine';
-import { playSubtleSound } from '../../lib/audio';
+import { playSafeSound } from '../../lib/audio';
 import confetti from 'canvas-confetti';
 
 const PIECE_COLORS: Record<PlayerColor, string> = {
@@ -14,38 +14,10 @@ const PIECE_COLORS: Record<PlayerColor, string> = {
   blue: 'bg-cyan-500 shadow-cyan-500/50',
 };
 
-const BASE_POSITIONS: Record<PlayerColor, {x: number, y: number}[]> = {
-  red: [{x: 1, y: 1}, {x: 4, y: 1}, {x: 1, y: 4}, {x: 4, y: 4}],
-  green: [{x: 10, y: 1}, {x: 13, y: 1}, {x: 10, y: 4}, {x: 13, y: 4}],
-  yellow: [{x: 10, y: 10}, {x: 13, y: 10}, {x: 10, y: 13}, {x: 13, y: 13}],
-  blue: [{x: 1, y: 10}, {x: 4, y: 10}, {x: 1, y: 13}, {x: 4, y: 13}],
-};
-
-const START_POSITIONS_BOARD = { red: 0, green: 13, yellow: 26, blue: 39 };
-
-function getCoordsForPiece(player: {uid: string, color: PlayerColor}, piece: Piece) {
-    let coords = { x: 0, y: 0 };
-    if (piece.status === 'base') {
-      coords = BASE_POSITIONS[player.color][piece.id];
-    } else if (piece.status === 'board') {
-      const idx = (START_POSITIONS_BOARD[player.color] + piece.position) % 52;
-      coords = PATH_COORDS[idx];
-    } else if (piece.status === 'home_stretch') {
-      coords = STRETCH_COORDS[player.color][piece.position];
-    } else if (piece.status === 'finished') {
-      // Offset slightly towards the triangle of their color
-      const offsets = {
-        red: [{x: 6.7, y: 6.7}, {x: 6.7, y: 7.3}, {x: 6.4, y: 7.0}, {x: 6.2, y: 7.0}],
-        green: [{x: 6.7, y: 6.7}, {x: 7.3, y: 6.7}, {x: 7.0, y: 6.4}, {x: 7.0, y: 6.2}],
-        amber: [{x: 7.3, y: 6.7}, {x: 7.3, y: 7.3}, {x: 7.6, y: 7.0}, {x: 7.8, y: 7.0}],
-        cyan: [{x: 6.7, y: 7.3}, {x: 7.3, y: 7.3}, {x: 7.0, y: 7.6}, {x: 7.0, y: 7.8}],
-      };
-      // fallback to object map for backward compatibility with 'yellow'/'blue' values
-      const colorOffsets = offsets[player.color as keyof typeof offsets] || 
-        (player.color === 'yellow' ? offsets.amber : offsets.cyan);
-      coords = colorOffsets[piece.id] || { x: 7, y: 7 };
-    }
-    return coords;
+function isSafeBoardPiece(playerColor: PlayerColor, piece: Piece) {
+    if (piece.status !== 'board') return false;
+    const absolutePosition = (START_POSITIONS[playerColor] + piece.position) % 52;
+    return SAFE_ZONES.includes(absolutePosition);
 }
 
 interface PieceComponentProps {
@@ -62,38 +34,33 @@ interface PieceComponentProps {
 export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, offsetY, onClick }: PieceComponentProps) {
     const controls = useAnimation();
     const prevTargetRef = useRef(targetPiece);
+    const movementKey = `${targetPiece.status}:${targetPiece.position}`;
+    const isOnSafeSquare = isSafeBoardPiece(player.color, targetPiece);
+    const offsetStyle = {
+      '--piece-offset-x': `${offsetX}px`,
+      '--piece-offset-y': `${offsetY}px`,
+    } as React.CSSProperties;
 
     useEffect(() => {
         const prev = prevTargetRef.current;
         
         if (prev.position === targetPiece.position && prev.status === targetPiece.status) {
-            // Only update non-positional properties if it hasn't moved, so we don't cancel a running movement animation
-            controls.start({
-                scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
-                opacity: 1,
-                z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
-                x: `calc(-50% + ${offsetX}px)`,
-                y: `calc(-50% + ${offsetY}px)`,
-                transition: { duration: 0.3 }
-            });
             return;
         }
 
         prevTargetRef.current = targetPiece;
+        const landedOnSafeSquare = isSafeBoardPiece(player.color, targetPiece);
 
         const animateStepByStep = async () => {
             if (prev.status === 'base' && targetPiece.status === 'board') {
-                // Instantly to start position
-                const coords = getCoordsForPiece(player, targetPiece);
-                playSubtleSound('spawn');
+                const coords = getPieceCoords(player.color, targetPiece);
                 await controls.start({
                     left: `${((coords.x + 0.5) / 15) * 100}%`,
                     top: `${((coords.y + 0.5) / 15) * 100}%`,
-                    x: `calc(-50% + ${offsetX}px)`,
-                    y: `calc(-50% + ${offsetY}px)`,
-                    scale: isMyTurn ? 1.15 : 1,
+                    scale: 1,
                     transition: { duration: 0.4, type: 'spring' }
                 });
+                if (landedOnSafeSquare) playSafeSound();
                 return;
             }
 
@@ -101,7 +68,6 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
                 (targetPiece.status === 'board' || targetPiece.status === 'home_stretch' || targetPiece.status === 'finished') &&
                 prev.position !== targetPiece.position && targetPiece.position > prev.position) {
                 
-                // Calculate steps
                 let currentPiece = { ...prev };
                 const steps: Piece[] = [];
                 let safetyCount = 0;
@@ -119,29 +85,23 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
 
                 // If somehow it fails to step (e.g., jumping back due to capture), just jump
                 if (steps.length === 0 || targetPiece.position < prev.position) {
-                    const coords = getCoordsForPiece(player, targetPiece);
+                    const coords = getPieceCoords(player.color, targetPiece);
                     await controls.start({
                         left: `${((coords.x + 0.5) / 15) * 100}%`,
                         top: `${((coords.y + 0.5) / 15) * 100}%`,
-                        x: `calc(-50% + ${offsetX}px)`,
-                        y: `calc(-50% + ${offsetY}px)`,
                         transition: { duration: 0.3 }
                     });
+                    if (landedOnSafeSquare) playSafeSound();
                     return;
                 }
 
                 // Animate each step
                 for (const stepPiece of steps) {
-                    const coords = getCoordsForPiece(player, stepPiece);
-                    
-                    // PLAY SOUND EFFECT for piece movement step
-                    playSubtleSound('step');
+                    const coords = getPieceCoords(player.color, stepPiece);
 
                     await controls.start({
                         left: `${((coords.x + 0.5) / 15) * 100}%`,
                         top: `${((coords.y + 0.5) / 15) * 100}%`,
-                        x: `calc(-50% + ${offsetX}px)`,
-                        y: `calc(-50% + ${offsetY}px)`,
                         transition: { duration: 0.2, ease: "linear" }
                     });
                 }
@@ -155,15 +115,16 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
                     });
                 }
                 controls.start({
-                    scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+                    scale: targetPiece.status === 'finished' ? 0.7 : 1,
                     opacity: 1,
-                    z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
+                    z: targetPiece.status === 'finished' ? 5 : 10,
                 });
+                if (landedOnSafeSquare) playSafeSound();
                 return;
             }
             
             // Default straight animation (e.g. captured and returning to base)
-            const defaultCoords = getCoordsForPiece(player, targetPiece);
+            const defaultCoords = getPieceCoords(player.color, targetPiece);
             if (targetPiece.status === 'finished' && prev.status !== 'finished') {
                 confetti({
                     particleCount: 100,
@@ -174,47 +135,64 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
             controls.start({
                 left: `${((defaultCoords.x + 0.5) / 15) * 100}%`,
                 top: `${((defaultCoords.y + 0.5) / 15) * 100}%`,
-                x: `calc(-50% + ${offsetX}px)`,
-                y: `calc(-50% + ${offsetY}px)`,
-                scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+                scale: targetPiece.status === 'finished' ? 0.7 : 1,
                 opacity: 1,
-                z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
+                z: targetPiece.status === 'finished' ? 5 : 10,
                 transition: { duration: 0.3 }
             });
+            if (landedOnSafeSquare) playSafeSound();
             
         };
 
         animateStepByStep();
-    }, [targetPiece, player, offsetX, offsetY, isMyTurn, controls]);
+    }, [movementKey, player.color, controls]);
 
     // Initial mount styling without animation
-    const initialCoords = getCoordsForPiece(player, targetPiece);
+    const initialCoords = getPieceCoords(player.color, targetPiece);
 
     return (
         <motion.div
-            layoutId={`${player.uid}-${targetPiece.id}`}
             animate={controls}
             initial={{
               left: `${((initialCoords.x + 0.5) / 15) * 100}%`,
               top: `${((initialCoords.y + 0.5) / 15) * 100}%`,
-              x: `calc(-50% + ${offsetX}px)`,
-              y: `calc(-50% + ${offsetY}px)`,
-              scale: targetPiece.status === 'finished' ? 0.7 : (isMyTurn ? 1.15 : 1),
+              scale: targetPiece.status === 'finished' ? 0.7 : 1,
               opacity: 1,
-              z: targetPiece.status === 'finished' ? 5 : (isMyTurn ? 30 : 10),
+              z: targetPiece.status === 'finished' ? 5 : 10,
             }}
+            style={offsetStyle}
+            transformTemplate={(_latest, generated) => `translate(calc(-50% + var(--piece-offset-x)), calc(-50% + var(--piece-offset-y))) ${generated}`}
             className={cn(
-              "absolute w-[5.5%] h-[5.5%] z-10 [transform-style:preserve-3d] pointer-events-auto",
+              "absolute w-[5.75%] h-[5.75%] z-10 [transform-style:preserve-3d] pointer-events-auto",
               isMyTurn && "cursor-pointer"
             )}
             onClick={onClick}
           >
           <div className={cn(
-            "w-full h-full relative [transform-style:preserve-3d] transition-transform duration-300",
-            isMyTurn && "scale-110"
+            "w-full h-full relative [transform-style:preserve-3d] transition-transform duration-300"
           )}>
+            {isMyTurn && (
+              <motion.div
+                initial={{ opacity: 0.35, scale: 1 }}
+                animate={{ opacity: [0.48, 0.82, 0.48], scale: [1.02, 1.09, 1.02] }}
+                transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                className="absolute -inset-[2px] rounded-full border border-dashed border-white shadow-[0_0_0_2px_rgba(244,63,94,0.64),0_0_8px_rgba(244,63,94,0.42)]"
+              />
+            )}
+
+            {isOnSafeSquare && (
+              <motion.div
+                initial={{ opacity: 0.16, scale: 0.96 }}
+                animate={{ opacity: [0.18, 0.56, 0.18], scale: [0.98, 1.11, 0.98], rotate: [0, 4, -4, 0] }}
+                transition={{ repeat: Infinity, duration: 1.55, ease: "easeInOut" }}
+                className="pointer-events-none absolute -inset-[3px] rounded-full border border-cyan-200/80 bg-cyan-300/12 shadow-[0_0_10px_rgba(34,211,238,0.58)] z-0"
+              >
+                <span className="absolute -right-1.5 -top-2.5 z-20 text-[12px] drop-shadow-md">⚡</span>
+              </motion.div>
+            )}
+
             {/* 3D Pawn Shape */}
-            <div className="w-full h-full relative [transform-style:preserve-3d]">
+            <div className="w-full h-full relative z-10 [transform-style:preserve-3d]">
               {/* Pawn Base */}
               <div className={cn(
                 "absolute inset-[5%] rounded-full shadow-[0_4px_8px_rgba(0,0,0,0.4)]",
@@ -242,27 +220,11 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
                 PIECE_COLORS[player.color],
                 "brightness-125 translate-y-[-8px]"
               )}>
-                {theme === 'romantic' || theme === 'vibrant' ? (
-                  <span className="text-[10px] drop-shadow-md">❤️</span>
-                ) : theme === 'panda' ? (
-                  <span className="text-[10px] drop-shadow-md">🐾</span>
-                ) : (
-                  <span className="text-[10px] drop-shadow-md">✨</span>
-                )}
+                <span className="text-[10px] font-black text-white drop-shadow-md">{targetPiece.id + 1}</span>
               </div>
             </div>
 
-            {/* Turn Indicator Glow */}
-            {isMyTurn && (
-                <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: [0.2, 0.4, 0.2], scale: [1, 1.2, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                    className="absolute -inset-1 rounded-full bg-white/30 blur-sm"
-                />
-            )}
           </div>
         </motion.div>
     );
 }
-

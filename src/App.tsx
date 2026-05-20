@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { Lobby } from './components/game/Lobby';
 import { Board } from './components/game/Board';
 import { Dice } from './components/game/Dice';
 import { useGame } from './hooks/useGame';
 import { motion, AnimatePresence } from 'motion/react';
-import { Heart, Trophy, LogOut, Share2, Users, Camera, X, Volume2, Music } from 'lucide-react';
+import { Heart, Trophy, LogOut, Users, Camera, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './lib/firebase';
@@ -19,6 +19,7 @@ import { StatsSidebar } from './components/game/Sidebars';
 import { History, MatchEntry } from './components/game/History';
 import { cn } from './lib/utils';
 import { collection, query, orderBy, limit, getDocs, addDoc } from 'firebase/firestore';
+import { getLegalMoves } from './lib/ludo-engine';
 
 function GameContent() {
   const { user, userData, loading, error } = useAuth();
@@ -28,7 +29,6 @@ function GameContent() {
   const { game, rollDice, performMove, startGame, isRolling } = useGame(activeRoomId || '', user?.uid);
   const [showHistory, setShowHistory] = useState(false);
   const [matches, setMatches] = useState<MatchEntry[]>([]);
-  const lastPlayedRef = useRef<number>(0);
 
   // Sync room ID to localStorage
   useEffect(() => {
@@ -40,24 +40,6 @@ function GameContent() {
   }, [activeRoomId]);
 
   const isMyTurn = game?.currentTurn === user?.uid;
-
-  // Auto-play voice messages
-  useEffect(() => {
-    if (game?.messages && game.messages.length > 0) {
-      const lastMsg = game.messages[game.messages.length - 1];
-      if (lastMsg.type === 'voice' && lastMsg.audioData && lastMsg.timestamp > lastPlayedRef.current) {
-        lastPlayedRef.current = lastMsg.timestamp;
-        const audio = new Audio(lastMsg.audioData);
-        audio.play().catch(e => console.error("Auto-play blocked or error:", e));
-      }
-    }
-  }, [game?.messages]);
-
-  useEffect(() => {
-     if (isMyTurn) {
-        new Audio('https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3').play().catch(() => {});
-     }
-  }, [isMyTurn]);
 
   // Load matches
   useEffect(() => {
@@ -107,8 +89,6 @@ function GameContent() {
       fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
       fire(0.1, { spread: 120, startVelocity: 45 });
       
-      const endSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2012/2012-preview.mp3');
-      endSound.play().catch(() => {});
     }
   }, [game?.status, game?.winner]);
 
@@ -136,7 +116,7 @@ function GameContent() {
     };
 
     if (withBot) {
-      const allColors: PlayerColor[] = ['red', 'yellow', 'green', 'blue'];
+      const allColors: PlayerColor[] = ['red', 'green', 'yellow', 'blue'];
       const botColors: PlayerColor[] = allColors.filter(c => c !== color);
       
       // For 2 player bot game, ensure cross positioning
@@ -176,6 +156,7 @@ function GameContent() {
       pieces: initialPieces,
       lastDiceValue: 1,
       diceRolled: false,
+      consecutiveSixes: 0,
       winner: null
     });
     setActiveRoomId(roomId);
@@ -263,7 +244,7 @@ function GameContent() {
                 className="p-2 hover:bg-rose-50 rounded-full transition-colors text-rose-300 flex items-center gap-2 px-4 border border-rose-50"
               >
                  <Camera className="w-5 h-5" />
-                 <span className="text-[10px] font-black uppercase tracking-widest hidden md:block">Scrapbook</span>
+                 <span className="text-[10px] font-black uppercase tracking-widest hidden md:block">History</span>
               </button>
               <div className="flex items-center gap-2">
                  <img src={userData?.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`} className="w-8 h-8 rounded-full border border-rose-200" alt="" />
@@ -310,8 +291,8 @@ function GameContent() {
                 className="bg-white p-12 rounded-[3rem] shadow-2xl border border-rose-50 text-center space-y-8 w-full max-w-md"
               >
                   <div className="space-y-2">
-                     <h2 className="text-3xl font-black text-gray-900 font-display">Waiting for Partner</h2>
-                     <p className="text-slate-400 font-medium tracking-tight">Share this code with your soulmate</p>
+                     <h2 className="text-3xl font-black text-gray-900 font-display">Waiting for Players</h2>
+                     <p className="text-slate-400 font-medium tracking-tight">Share this room code with other players.</p>
                   </div>
 
                   <div className="bg-rose-50 p-6 rounded-3xl border-2 border-dashed border-rose-200">
@@ -344,7 +325,7 @@ function GameContent() {
                         onClick={startGame}
                         className="w-full py-5 bg-rose-500 text-white font-black rounded-2xl hover:bg-rose-600 transition-all shadow-xl shadow-rose-200 animate-bounce"
                       >
-                         START THE JOURNEY
+                         START GAME
                       </button>
                   )}
 
@@ -355,78 +336,68 @@ function GameContent() {
   }
 
   const myPiecesFinished = game.pieces[user.uid]?.filter(p => p.status === 'finished').length || 0;
+  const legalPieceIds = myPlayer && isMyTurn && game.diceRolled
+    ? getLegalMoves(myPlayer.color, game.pieces[user.uid] || [], game.lastDiceValue).map(piece => piece.id)
+    : [];
+  const activePlayers = [game.player1, game.player2, game.player3, game.player4].filter(Boolean);
+  const currentTurnPlayer = activePlayers.find(p => p?.uid === game.currentTurn);
+  const canRoll = isMyTurn && !game.diceRolled && !isRolling && !game.isRolling;
 
   return (
-    <div className="min-h-screen bg-[#FFF5F7] text-gray-900 flex flex-col font-sans">
-      <nav className="h-16 flex items-center justify-between px-4 sm:px-8 bg-white border-b border-rose-100 shadow-sm shrink-0 z-30">
+    <div className="flex min-h-screen w-full flex-col bg-[#FFF6F8] text-gray-900 font-sans">
+      <nav className="h-[clamp(54px,14vw,62px)] flex items-center justify-between px-[clamp(12px,4vw,18px)] bg-white/96 border-b border-rose-100 shadow-sm shrink-0 z-30">
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-rose-500 rounded-xl flex items-center justify-center shadow-lg transform rotate-3 shrink-0">
-            <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-white fill-white" />
+          <div className="w-[clamp(34px,10vw,42px)] h-[clamp(34px,10vw,42px)] bg-rose-500 rounded-[14px] flex items-center justify-center shadow-lg shadow-rose-200/80 transform rotate-3 shrink-0">
+            <Heart className="w-[clamp(18px,5vw,23px)] h-[clamp(18px,5vw,23px)] text-white fill-white" />
           </div>
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-pink-600 font-display">LUDO LOVE</h1>
+          <h1 className="text-[clamp(20px,6vw,27px)] font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-rose-500 to-pink-600 font-display">LUDO LOVE</h1>
         </div>
         
-        <div className="flex items-center gap-2 sm:gap-4 text-sm font-semibold">
-          <div className="flex items-center gap-2 bg-rose-50 px-3 sm:px-4 py-2 rounded-full border border-rose-100">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <div className="flex items-center gap-2 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100">
              <span className={cn("w-2 h-2 rounded-full", isMyTurn ? "bg-rose-500 animate-pulse" : "bg-slate-300")} />
-             <span className="text-rose-600 font-mono text-[10px] sm:text-xs uppercase tracking-wider">{activeRoomId}</span>
-          </div>
-          
-          <div className="hidden sm:flex flex-col items-end mr-2">
-             <span className="text-[9px] font-black text-rose-300 uppercase leading-none tracking-widest">Balance</span>
-             <span className="text-emerald-500 font-black text-sm">💰 {userData?.points || 0}</span>
-          </div>
-
-          <div className="hidden sm:flex items-center -space-x-3">
-             {[game.player1, game.player2, game.player3, game.player4].filter(p => !!p).map((p, i) => (
-                <div key={i} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-white p-0.5 bg-white z-10 overflow-hidden ring-2 ring-rose-100">
-                   <img src={p!.avatar} title={p!.name} className="w-full h-full rounded-full bg-rose-100 object-cover" />
-                </div>
-             ))}
+             <span className="text-rose-600 font-mono text-[10px] uppercase tracking-wider">{activeRoomId}</span>
           </div>
           
           <button 
             onClick={() => setActiveRoomId(null)}
-            className="p-1.5 sm:p-2 text-rose-300 hover:text-rose-500 transition-colors"
+            className="p-2 text-rose-300 hover:text-rose-500 transition-colors"
           >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </nav>
 
-      <main className="flex-1 flex flex-col items-center justify-center gap-4 p-4 overflow-hidden relative">
-        {/* Top Stats */}
-        <div className="w-full max-w-[480px] sm:max-w-[560px] flex items-center justify-between px-2">
-           <div className="flex items-center gap-2">
+      <main className="flex-1 flex flex-col items-center justify-start gap-[clamp(8px,2.4vw,16px)] px-[clamp(10px,3vw,20px)] pt-[clamp(10px,3vw,18px)] pb-[clamp(118px,18svh,150px)] overflow-hidden relative">
+        <div className="grid w-full max-w-[620px] grid-cols-[1fr_auto] items-center gap-3 rounded-[22px] border border-rose-100 bg-white/72 px-3 py-2 shadow-sm shadow-rose-100/70">
+           <div className="flex min-w-0 items-center gap-2">
               <div className={cn(
-                "w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-lg border-2",
-                isMyTurn ? "bg-rose-500 border-rose-300 animate-pulse" : "bg-slate-100 border-slate-200"
+                "w-10 h-10 rounded-2xl flex items-center justify-center text-lg shadow-md border-2",
+                isMyTurn ? "bg-rose-500 border-rose-200 text-white" : "bg-slate-100 border-slate-200"
               )}>
                  {isMyTurn ? "🎲" : "⏳"}
               </div>
-              <div className="flex flex-col">
+              <div className="flex min-w-0 flex-col">
                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Current Turn</span>
-                 <span className="text-sm font-black text-slate-700">
-                    {isMyTurn ? "Your Turn" : [game.player1, game.player2, game.player3, game.player4].find(p => p?.uid === game.currentTurn)?.name || 'Partner'}
+                 <span className="truncate text-[clamp(13px,3.8vw,16px)] font-black text-slate-800">
+                    {isMyTurn ? "Your Turn" : currentTurnPlayer?.name || 'Player'}
                  </span>
               </div>
            </div>
            
-           <div className="flex items-center gap-4">
-              <div className="text-right">
-                 <span className="text-[9px] font-black uppercase tracking-widest text-rose-300">Victory Goal</span>
+           <div className="text-right">
+                 <span className="text-[9px] font-black uppercase tracking-widest text-rose-300">Goal</span>
                  <div className="flex items-center gap-1 justify-end">
                     {[1,2,3,4].map(i => (
-                       <div key={i} className={cn("w-1.5 h-1.5 rounded-full", i <= myPiecesFinished ? "bg-rose-500" : "bg-rose-100")} />
+                       <div key={i} className={cn("w-2 h-2 rounded-full", i <= myPiecesFinished ? "bg-rose-500" : "bg-rose-100")} />
                     ))}
                  </div>
-              </div>
            </div>
         </div>
 
         {/* Center: The Board */}
-        <section className="flex-1 flex flex-col items-center justify-center overflow-auto min-h-0 relative px-0 md:px-2">
-           <div className="w-full max-w-[480px] sm:max-w-[560px] relative rounded-[2rem]">
+        <section className="flex-1 flex w-full flex-col items-center justify-start overflow-auto min-h-0 relative px-0">
+           <div className="relative w-[min(calc(100vw-20px),calc(100svh-210px),620px)] rounded-[1.6rem]">
               <Board 
                 theme={game.theme}
                 pieces={game.pieces}
@@ -439,6 +410,7 @@ function GameContent() {
                 currentTurn={game.currentTurn}
                 localPlayerUid={user.uid}
                 diceRolled={game.diceRolled || false}
+                legalPieceIds={legalPieceIds}
                 onPieceClick={(id) => performMove(user.uid, id)}
               />
               
@@ -485,55 +457,71 @@ function GameContent() {
            </div>
         </section>
 
-        {/* Mobile View Indicators */}
-        <AnimatePresence mode="popLayout">
-             <motion.div 
-               key={game.currentTurn}
-               initial={{ y: 100, opacity: 0 }}
-               animate={{ y: 0, opacity: 1 }}
-               exit={{ y: 100, opacity: 0 }}
-               className="fixed bottom-6 inset-x-0 p-4 flex justify-center z-40"
-             >
-                <div className={cn(
-                  "bg-white rounded-3xl shadow-2xl border-4 flex items-center justify-between px-3 gap-3 relative overflow-hidden h-[80px]",
-                  isMyTurn ? "border-rose-500 w-[224px]" : "border-slate-300 w-[180px]"
-                )}>
-                   <Dice 
-                    value={game.lastDiceValue}
-                    isRolling={isRolling}
-                    disabled={!isMyTurn || game.diceRolled}
-                    color={myColor}
-                    onClick={() => isMyTurn && !isRolling && rollDice(user.uid)}
-                   />
-                   {isMyTurn ? (
-                     <div className="flex flex-col gap-1 pr-2">
-                        <button 
-                          disabled={!isMyTurn || game.diceRolled || isRolling}
-                          onClick={() => rollDice(user.uid)}
-                          className={cn(
-                            "px-6 py-2 rounded-xl text-xs font-black uppercase tracking-tighter transition-all shadow-md active:scale-95",
-                            !game.diceRolled && !isRolling ? "bg-rose-500 text-white" : "bg-slate-100 text-slate-400 grayscale"
-                          )}
-                        >
-                           {isRolling ? "Rolling..." : "Roll Now"}
-                        </button>
-                     </div>
-                   ) : (
-                     <div className="pr-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center flex flex-col leading-tight">
-                         <span className="text-slate-500">{[game.player1, game.player2, game.player3, game.player4].find(p => p?.uid === game.currentTurn)?.name || 'Player'}</span>
-                         <span>Turn</span>
-                     </div>
-                   )}
+        <div className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-rose-100 bg-white/96 backdrop-blur-xl shadow-[0_-18px_50px_rgba(244,63,94,0.14)]">
+          <div className="relative mx-auto grid min-h-[112px] w-full max-w-[620px] grid-cols-[minmax(0,1fr)_86px_minmax(0,1fr)] items-center gap-2 px-[clamp(10px,3.4vw,18px)] pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
+            <div className="flex min-w-0 items-center gap-2 rounded-[22px] border border-rose-100 bg-rose-50/75 px-2 py-2 shadow-sm">
+              <div className="relative h-[clamp(42px,12vw,50px)] w-[clamp(42px,12vw,50px)] shrink-0 rounded-2xl border-2 border-white bg-white shadow-md">
+                <img
+                  src={userData?.avatar || `https://api.dicebear.com/7.x/adventurer/svg?seed=${user.uid}`}
+                  className="h-full w-full rounded-2xl object-cover"
+                  alt=""
+                />
+                <span className={cn(
+                  "absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-2 border-white",
+                  myColor === 'red' ? 'bg-rose-500' : myColor === 'green' ? 'bg-emerald-500' : myColor === 'yellow' ? 'bg-amber-400' : 'bg-cyan-500'
+                )} />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-[clamp(12px,3.7vw,15px)] font-black text-slate-800">
+                  {userData?.name || myPlayer?.name || 'You'}
                 </div>
-             </motion.div>
-        </AnimatePresence>
-      </main>
+                <div className="text-[clamp(9px,2.8vw,11px)] font-black uppercase tracking-wider text-emerald-500">
+                  Coins {userData?.points || 0}
+                </div>
+              </div>
+            </div>
 
-      <footer className="h-12 flex items-center justify-center gap-12 text-[10px] text-rose-300 font-bold tracking-[0.2em] uppercase shrink-0 border-t border-rose-50 bg-white/50">
-        <span>Memory Mode: Level 5</span>
-        <span className="opacity-30">•</span>
-        <span>Lofi Love Beats</span>
-      </footer>
+            <div className="flex min-w-0 flex-col items-center gap-1">
+              <div className={cn(
+                "relative flex h-[66px] w-[66px] items-center justify-center rounded-[22px] border-[3px] bg-white p-[3px] shadow-xl",
+                canRoll ? "shadow-rose-200/90" : "shadow-slate-200/70"
+              )}
+                style={{ borderColor: canRoll ? '#ff2f68' : '#e2e8f0' }}
+              >
+                <div className="flex h-full w-full items-center justify-center rounded-[19px] bg-white">
+                <Dice
+                  value={game.lastDiceValue}
+                  isRolling={isRolling || !!game.isRolling}
+                  disabled={!canRoll}
+                  color={myColor}
+                  onClick={() => canRoll && rollDice(user.uid)}
+                />
+                </div>
+              </div>
+              <button
+                disabled={!canRoll}
+                onClick={() => rollDice(user.uid)}
+                className={cn(
+                  "h-8 min-w-[76px] rounded-full px-3 text-[11px] font-black uppercase tracking-wider shadow-md transition-all active:scale-95",
+                  canRoll ? "bg-rose-500 text-white shadow-rose-200" : "bg-slate-100 text-slate-400 shadow-none"
+                )}
+              >
+                {isRolling || game.isRolling ? "Rolling" : game.diceRolled ? "Move" : "Roll"}
+              </button>
+            </div>
+
+            <div className="flex min-w-0 flex-col items-end rounded-[20px] border border-slate-100 bg-white px-2 py-2">
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Turn</span>
+              <span className="max-w-full truncate text-[clamp(12px,3.5vw,15px)] font-black text-slate-800">
+                {isMyTurn ? "You" : currentTurnPlayer?.name || 'Player'}
+              </span>
+              <span className="mt-0.5 text-[10px] font-black uppercase tracking-wider text-rose-400">
+                {game.diceRolled ? 'Move' : game.isRolling || isRolling ? 'Rolling' : 'Ready'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

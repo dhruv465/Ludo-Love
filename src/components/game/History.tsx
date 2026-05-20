@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Trophy, Calendar, Users, Heart, Camera, Volume2 } from 'lucide-react';
-import { cn } from '../../lib/utils';
+import { Trophy, Calendar, Heart, Camera } from 'lucide-react';
 
 export interface MatchEntry {
   id: string;
@@ -27,8 +26,8 @@ export function History({ matches, onClose }: { matches: MatchEntry[], onClose: 
                 <Heart className="w-6 h-6 text-white fill-white" />
              </div>
              <div>
-                <h2 className="text-4xl font-black text-slate-900 font-display">Our Journey</h2>
-                <p className="text-rose-300 font-bold uppercase tracking-widest text-[10px]">Relationship Scrapbook</p>
+                <h2 className="text-4xl font-black text-slate-900 font-display">Match History</h2>
+                <p className="text-rose-300 font-bold uppercase tracking-widest text-[10px]">Recent classic Ludo games</p>
              </div>
           </div>
           <button 
@@ -42,8 +41,8 @@ export function History({ matches, onClose }: { matches: MatchEntry[], onClose: 
         {matches.length === 0 ? (
           <div className="bg-white p-20 rounded-[3rem] text-center border-4 border-dashed border-rose-100">
              <Camera className="w-16 h-16 text-rose-100 mx-auto mb-6" />
-             <h3 className="text-xl font-bold text-slate-400">No memories captured yet</h3>
-             <p className="text-slate-300 text-sm">Start a game to create your first scrapbook entry!</p>
+             <h3 className="text-xl font-bold text-slate-400">No matches yet</h3>
+             <p className="text-slate-300 text-sm">Finish a game to create match history.</p>
           </div>
         ) : (
           <div className="space-y-8">
@@ -85,25 +84,15 @@ export function History({ matches, onClose }: { matches: MatchEntry[], onClose: 
                       </div>
 
                       <div className="bg-rose-50/50 p-6 rounded-3xl border border-rose-100/50">
-                         <h4 className="text-[10px] font-black text-rose-300 uppercase tracking-widest mb-3">Moments Captured</h4>
+                         <h4 className="text-[10px] font-black text-rose-300 uppercase tracking-widest mb-3">Match Events</h4>
                          <div className="flex flex-wrap gap-2">
                             {match.messages?.filter(m => m.type === 'reaction' || m.type === 'moment').slice(0, 8).map((m, k) => (
                                <div key={k} className="bg-white px-3 py-1.5 rounded-full shadow-sm text-lg border border-rose-100">
                                   {m.text}
                                </div>
                             ))}
-                            {match.messages?.filter(m => m.type === 'voice').map((m, k) => (
-                               <button 
-                                 key={`voice-${k}`}
-                                 onClick={() => new Audio(m.audioData).play().catch(() => {})}
-                                 className="bg-rose-500 text-white px-3 py-1.5 rounded-full shadow-sm flex items-center gap-2 hover:bg-rose-600 transition-colors"
-                               >
-                                  <Volume2 className="w-3 h-3" />
-                                  <span className="text-[10px] font-black uppercase">Voice</span>
-                               </button>
-                            ))}
                             {(!match.messages || match.messages.length === 0) && (
-                               <span className="text-[10px] text-slate-400 font-bold italic">Just play and fun!</span>
+                               <span className="text-[10px] text-slate-400 font-bold italic">No events saved.</span>
                             )}
                          </div>
                       </div>
@@ -120,7 +109,7 @@ export function History({ matches, onClose }: { matches: MatchEntry[], onClose: 
                          ))}
                          {(!match.messages || match.messages.filter(m => m.type === 'text').length === 0) && (
                             <div className="h-full flex items-center justify-center border-2 border-dashed border-slate-50 rounded-2xl">
-                               <span className="text-[10px] font-black text-slate-200">Silence is silver...</span>
+                               <span className="text-[10px] font-black text-slate-200">No chat saved</span>
                             </div>
                          )}
                       </div>

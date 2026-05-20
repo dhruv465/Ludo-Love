@@ -52,7 +52,7 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
       { id: 'vibrant', label: 'Vibrant Palette' },
       { id: 'neon', label: 'Cozy Neon' },
       { id: 'panda', label: 'Minimal Panda' },
-      { id: 'romantic', label: 'Romantic' }
+      { id: 'romantic', label: 'Soft Classic' }
   ];
 
   return (
@@ -64,8 +64,8 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
       >
         <div className="absolute top-0 inset-x-0 h-1bg-gradient-to-r from-rose-500 via-pink-500 to-emerald-500" />
         <div className="text-center space-y-2">
-           <h2 className="text-4xl font-black text-gray-900 font-display">Ludo Journey</h2>
-           <p className="text-slate-400 font-medium tracking-tight">Play with friends or battle the bots.</p>
+           <h2 className="text-4xl font-black text-gray-900 font-display">Ludo Love</h2>
+           <p className="text-slate-400 font-medium tracking-tight">Play proper Ludo with friends or bots.</p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">

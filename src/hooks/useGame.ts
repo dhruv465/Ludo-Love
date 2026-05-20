@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { doc, onSnapshot, updateDoc, serverTimestamp, setDoc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { GameState, Piece, PlayerColor } from '../lib/ludo-types';
-import { movePiece, checkCollision } from '../lib/ludo-engine';
+import { GameState, Piece, Player, PlayerColor } from '../lib/ludo-types';
+import {
+  chooseBestLegalMove,
+  checkCapture,
+  getLegalMoves,
+  getPlayerColorMap,
+  movePiece,
+  resolveNextTurn,
+} from '../lib/ludo-engine';
 
 enum OperationType {
   CREATE = 'create',
@@ -41,8 +48,6 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
   throw new Error(JSON.stringify(errInfo));
 }
 
-import { playSubtleSound } from '../lib/audio';
-
 export function useGame(roomId: string, userUid?: string) {
   const [game, setGame] = useState<GameState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,21 +74,14 @@ export function useGame(roomId: string, userUid?: string) {
 
   const rollDice = async (uid: string) => {
     if (!game || game.currentTurn !== uid || game.diceRolled || localRolling || rollLockRef.current) return;
+    const activePlayers = [game.player1, game.player2, game.player3, game.player4].filter(Boolean) as Player[];
+    const player = activePlayers.find((candidate) => candidate.uid === uid);
+    if (!player) return;
     
     rollLockRef.current = true;
     setLocalRolling(true);
     
-    const piecesForLuck = game.pieces[uid] || [];
     let diceValue = Math.floor(Math.random() * 6) + 1;
-    
-    // Slight luck boost if all pieces are in base
-    const allInBase = piecesForLuck.length > 0 && piecesForLuck.every(p => p.status === 'base');
-    if (allInBase && diceValue !== 6) {
-        // High chance to get a 6 to quickly get them into the game
-        if (Math.random() < 0.6) {
-            diceValue = 6;
-        }
-    }
     
     try {
         const gameRef = doc(db, 'rooms', roomId);
@@ -96,48 +94,27 @@ export function useGame(roomId: string, userUid?: string) {
     setTimeout(async () => {
       try {
         const gameRef = doc(db, 'rooms', roomId);
+        const turnResult = resolveNextTurn({
+          currentUid: uid,
+          players: activePlayers,
+          diceValue,
+          consecutiveSixes: game.consecutiveSixes || 0,
+        });
+        const legalMoves = getLegalMoves(player.color, game.pieces[uid] || [], diceValue);
+        const shouldPassTurn = turnResult.cancelsMove || legalMoves.length === 0;
+        const nextTurnUid = shouldPassTurn ? turnResult.nextTurnUid : uid;
+
         await updateDoc(gameRef, {
           lastDiceValue: diceValue,
-          diceRolled: true,
+          diceRolled: !shouldPassTurn,
           isRolling: false,
+          currentTurn: nextTurnUid,
+          consecutiveSixes: shouldPassTurn ? turnResult.consecutiveSixes : turnResult.consecutiveSixes,
           updatedAt: serverTimestamp()
         });
 
         setLocalRolling(false);
         rollLockRef.current = false;
-
-        // Auto-skip logic if no moves are possible
-        const pieces = game.pieces[uid] || [];
-        const playerColor = [game.player1, game.player2, game.player3, game.player4].find(p => p?.uid === uid)?.color || 'red';
-        
-        const validPieces = pieces.filter(p => !!movePiece(playerColor, p, diceValue));
-        const hasValidMoves = validPieces.length > 0;
-        
-        if (!hasValidMoves) {
-            await new Promise(r => setTimeout(r, 800));
-            
-            let nextTurnUid = uid;
-            if (diceValue !== 6) {
-                const colorOrder: PlayerColor[] = ['red', 'green', 'blue', 'yellow'];
-                const players = ([game.player1, game.player2, game.player3, game.player4].filter(p => !!p) as any[])
-                    .sort((a, b) => colorOrder.indexOf(a.color) - colorOrder.indexOf(b.color));
-                
-                const currentIndex = players.findIndex(p => p.uid === uid);
-                const nextPlayer = players[(currentIndex + 1) % players.length];
-                nextTurnUid = nextPlayer?.uid || uid;
-            }
-            
-            await updateDoc(gameRef, {
-                currentTurn: nextTurnUid,
-                diceRolled: false,
-                updatedAt: serverTimestamp()
-            });
-        } else if (validPieces.length === 1) {
-            // Auto move if exactly 1 piece can be moved
-            setTimeout(async () => {
-                await performMove(uid, validPieces[0].id, diceValue);
-            }, 600);
-        }
       } catch (err) {
         console.error("Roll dice error:", err);
         setLocalRolling(false); // Make sure we unlock local roll state on error
@@ -159,7 +136,8 @@ export function useGame(roomId: string, userUid?: string) {
     if (!game || game.currentTurn !== uid || localRolling) return;
     if (!overrideDiceValue && !game.diceRolled) return;
 
-    const player = game.player1?.uid === uid ? game.player1 : (game.player2?.uid === uid ? game.player2 : (game.player3?.uid === uid ? game.player3 : game.player4));
+    const activePlayers = [game.player1, game.player2, game.player3, game.player4].filter(Boolean) as Player[];
+    const player = activePlayers.find((candidate) => candidate.uid === uid);
     if (!player) return;
 
     const pieces = game.pieces[uid];
@@ -174,17 +152,9 @@ export function useGame(roomId: string, userUid?: string) {
     const updatedPieces = { ...game.pieces };
     updatedPieces[uid] = pieces.map(p => p.id === pieceId ? newPiece : p);
 
-    const playerColors = {
-        [game.player1?.uid || '']: game.player1?.color || 'red',
-        [game.player2?.uid || '']: game.player2?.color || 'blue',
-        [game.player3?.uid || '']: game.player3?.color || 'green',
-        [game.player4?.uid || '']: game.player4?.color || 'yellow',
-    } as Record<string, PlayerColor>;
-
-    // Check collision
-    const collision = checkCollision(uid, newPiece, updatedPieces, playerColors);
+    const playerColors = getPlayerColorMap(activePlayers);
+    const collision = checkCapture(uid, newPiece, updatedPieces, playerColors);
     if (collision) {
-      playSubtleSound('capture');
       const victimPieces = updatedPieces[collision.victimUid];
       updatedPieces[collision.victimUid] = victimPieces.map(p => 
         p.id === collision.victimPieceId ? { ...p, position: -1, status: 'base' } : p
@@ -209,7 +179,6 @@ export function useGame(roomId: string, userUid?: string) {
     // Check win
     const isWinner = updatedPieces[uid].every(p => p.status === 'finished');
     if (isWinner) {
-        playSubtleSound('win');
         await sendMessage(uid, player.name, `Victory! Completed the journey 🏆`, 'moment');
         
         // Award points for victory
@@ -225,24 +194,23 @@ export function useGame(roomId: string, userUid?: string) {
         }
     }
     
-    // Switch turn logic
-    let nextTurn = game.currentTurn;
-    if (game.lastDiceValue !== 6 && !collision && !isWinner) {
-      const colorOrder: PlayerColor[] = ['red', 'green', 'blue', 'yellow'];
-      const players = ([game.player1, game.player2, game.player3, game.player4].filter(p => !!p) as any[])
-        .sort((a, b) => colorOrder.indexOf(a.color) - colorOrder.indexOf(b.color));
-      
-      const currentIndex = players.findIndex(p => p.uid === uid);
-      const nextPlayer = players[(currentIndex + 1) % players.length];
-      nextTurn = nextPlayer?.uid || uid;
-    }
+    const finishedPiece = newPiece.status === 'finished' && piece.status !== 'finished';
+    const turnResult = resolveNextTurn({
+      currentUid: uid,
+      players: activePlayers,
+      diceValue: currentDiceValue,
+      consecutiveSixes: game.consecutiveSixes || 0,
+      captured: !!collision,
+      finishedPiece,
+    });
 
     const gameRef = doc(db, 'rooms', roomId);
     try {
       await updateDoc(gameRef, {
         pieces: updatedPieces,
-        currentTurn: isWinner ? null : nextTurn,
+        currentTurn: isWinner ? null : turnResult.nextTurnUid,
         diceRolled: false,
+        consecutiveSixes: isWinner ? 0 : turnResult.consecutiveSixes,
         winner: isWinner ? uid : null,
         status: isWinner ? 'finished' : 'playing',
         updatedAt: serverTimestamp()
@@ -268,15 +236,18 @@ export function useGame(roomId: string, userUid?: string) {
                     await rollDice(currentPlayer.uid);
                 } else {
                     await new Promise(resolve => setTimeout(resolve, 800));
-                    const pieces = game.pieces[currentPlayer.uid];
-                    const validPieces = pieces.filter(p => {
-                        const next = movePiece(currentPlayer.color, p, game.lastDiceValue);
-                        return !!next;
-                    });
+                    const pieces = game.pieces[currentPlayer.uid] || [];
+                    const playerColors = getPlayerColorMap([game.player1, game.player2, game.player3, game.player4].filter(Boolean) as Player[]);
+                    const bestPiece = chooseBestLegalMove(
+                      currentPlayer.uid,
+                      currentPlayer.color,
+                      pieces,
+                      game.lastDiceValue,
+                      game.pieces,
+                      playerColors
+                    );
 
-                    if (validPieces.length > 0) {
-                        // Simple AI: Move the piece that is furthest along
-                        const bestPiece = validPieces.sort((a, b) => b.position - a.position)[0];
+                    if (bestPiece) {
                         await performMove(currentPlayer.uid, bestPiece.id);
                     }
                 }
@@ -290,7 +261,7 @@ export function useGame(roomId: string, userUid?: string) {
     }
   }, [game?.currentTurn, game?.diceRolled, game?.status, game?.winner, localRolling, userUid, game?.hostId, isBotProcessing]);
 
-  const sendMessage = async (uid: string, sender: string, text: string, type: 'text' | 'reaction' | 'moment' | 'voice' = 'text', audioData?: string) => {
+  const sendMessage = async (uid: string, sender: string, text: string, type: 'text' | 'reaction' | 'moment' = 'text') => {
     if (!roomId || !game) return;
     const gameRef = doc(db, 'rooms', roomId);
     const newMessage: any = {
@@ -300,10 +271,6 @@ export function useGame(roomId: string, userUid?: string) {
       type,
       timestamp: Date.now()
     };
-    
-    if (audioData) {
-      newMessage.audioData = audioData;
-    }
     
     await updateDoc(gameRef, {
       messages: [...(game.messages || []), newMessage],
