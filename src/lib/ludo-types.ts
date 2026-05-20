@@ -22,6 +22,19 @@ export interface Player {
 
 export type GameStatus = 'waiting' | 'playing' | 'finished';
 
+export type MomentMood = 'cute' | 'romantic' | 'spicy';
+export type MomentEvent = 'roll_six' | 'capture' | 'safe_square' | 'finish_piece' | 'victory';
+
+export interface CoupleMoment {
+  id: string;
+  event: MomentEvent;
+  mood: MomentMood;
+  prompt: string;
+  rewardCoins: number;
+  playerUid: string;
+  createdAt: number;
+}
+
 export interface Message {
   uid: string;
   sender: string;
@@ -45,6 +58,8 @@ export interface GameState {
   diceRolled: boolean;
   consecutiveSixes?: number;
   isRolling?: boolean;
+  momentMood?: MomentMood;
+  activeMoment?: CoupleMoment | null;
   winner: string | null;
   messages?: Message[];
   updatedAt: any;
