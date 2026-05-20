@@ -7,7 +7,7 @@ export type GameTheme = 'vibrant' | 'neon' | 'panda' | 'romantic';
 
 export interface Piece {
   id: number;
-  position: number; // -1: base, 0-51: outer path, 0-5: home stretch, 58: finished
+  position: number; // -1: base, 0-51: outer path, 0-4: home stretch, 58: finished
   status: 'base' | 'board' | 'home_stretch' | 'finished';
 }
 

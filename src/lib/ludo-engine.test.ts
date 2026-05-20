@@ -43,16 +43,16 @@ test('piece must roll exact value to enter home stretch', () => {
 });
 
 test('piece must roll exact value to finish', () => {
-  assert.deepEqual(movePiece('red', stretchPiece(5), 1), {
+  assert.deepEqual(movePiece('red', stretchPiece(4), 1), {
     id: 0,
     position: 58,
     status: 'finished',
   });
-  assert.equal(movePiece('red', stretchPiece(5), 2), null);
+  assert.equal(movePiece('red', stretchPiece(4), 2), null);
 });
 
 test('legal moves exclude pieces that would overshoot finish', () => {
-  const legal = getLegalMoves('red', [stretchPiece(5), boardPiece(4, 1)], 2);
+  const legal = getLegalMoves('red', [stretchPiece(4), boardPiece(4, 1)], 2);
   assert.deepEqual(legal.map((piece) => piece.id), [1]);
 });
 

@@ -10,6 +10,7 @@ import {
 import { COLOR_ORDER } from './ludo-board-layout';
 
 const HOME_ENTRY_POSITION = PATH_LENGTH - 2;
+const HOME_FINISH_POSITION = HOME_STRETCH_LENGTH - 1;
 
 export function movePiece(
   _playerColor: PlayerColor,
@@ -37,10 +38,10 @@ export function movePiece(
   }
 
   const nextPos = piece.position + diceValue;
-  if (nextPos < HOME_STRETCH_LENGTH) {
+  if (nextPos < HOME_FINISH_POSITION) {
     return { ...piece, position: nextPos };
   }
-  if (nextPos === HOME_STRETCH_LENGTH) {
+  if (nextPos === HOME_FINISH_POSITION) {
     return { ...piece, status: 'finished', position: 58 };
   }
 
