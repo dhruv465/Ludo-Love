@@ -3,6 +3,7 @@ import { doc, increment, onSnapshot, runTransaction, serverTimestamp, updateDoc 
 import { db, auth } from '../lib/firebase';
 import { canCreateCoupleMomentForPlayer, createCoupleMoment, formatMomentMessage } from '../lib/couple-moments';
 import { CoupleMoment, GameState, Message, Player } from '../lib/ludo-types';
+import { playCaptureSound, playDiceRollSound } from '../lib/audio';
 import {
   chooseBestLegalMove,
   checkCapture,
@@ -153,6 +154,7 @@ export function useGame(roomId: string, userUid?: string) {
         rollLockRef.current = false;
         return;
       }
+      playDiceRollSound();
     } catch (e) {
       console.error("Failed to claim roll", e);
       setLocalRolling(false);
@@ -320,6 +322,7 @@ export function useGame(roomId: string, userUid?: string) {
       if (!applied || !appliedMoveEffects) return;
 
       if (appliedMoveEffects.capturedVictimName) {
+        playCaptureSound();
         await sendMessage(uid, appliedMoveEffects.playerName, `Captured ${appliedMoveEffects.capturedVictimName}'s piece! ⚡`, 'moment');
       }
 

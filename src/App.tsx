@@ -15,7 +15,7 @@ import { Heart, Trophy, LogOut, Users, Camera, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from './lib/firebase';
-import { PlayerColor, GameTheme, MomentMood } from './lib/ludo-types';
+import { PlayerColor, MomentMood } from './lib/ludo-types';
 import { History, MatchEntry } from './components/game/History';
 import { cn } from './lib/utils';
 import { collection, query, orderBy, limit, getDocs, addDoc } from 'firebase/firestore';
@@ -92,7 +92,7 @@ function GameContent() {
     }
   }, [game?.status, game?.winner]);
 
-  const createRoom = async (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean = false, momentMood: MomentMood = 'romantic') => {
+  const createRoom = async (color: PlayerColor, playerCount: number, withBot: boolean = false, momentMood: MomentMood = 'romantic') => {
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const roomRef = doc(db, 'rooms', roomId);
     
@@ -148,7 +148,7 @@ function GameContent() {
       hostId: user!.uid,
       ...players,
       status: withBot ? 'playing' : 'waiting',
-      theme,
+      theme: 'vibrant',
       momentMood,
       activeMoment: null,
       maxPlayers: playerCount,

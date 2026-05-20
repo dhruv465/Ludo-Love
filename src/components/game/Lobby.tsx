@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Zap, Palette, ArrowRight } from 'lucide-react';
-import { PlayerColor, GameTheme, MomentMood } from '../../lib/ludo-types';
+import { Zap, ArrowRight, Heart } from 'lucide-react';
+import { PlayerColor, MomentMood } from '../../lib/ludo-types';
 import { cn } from '../../lib/utils';
 
 interface LobbyProps {
-  onCreate: (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean, momentMood: MomentMood) => void | Promise<void>;
+  onCreate: (color: PlayerColor, playerCount: number, withBot: boolean, momentMood: MomentMood) => void | Promise<void>;
   onJoin: (roomId: string) => void | Promise<void>;
 }
 
@@ -14,7 +14,6 @@ export function Lobby({ onCreate, onJoin }: LobbyProps) {
   const [loading, setLoading] = useState(false);
   
   const [selectedColor, setSelectedColor] = useState<PlayerColor>('red');
-  const [selectedTheme, setSelectedTheme] = useState<GameTheme>('vibrant');
   const [selectedMood, setSelectedMood] = useState<MomentMood>('romantic');
 
   const [playerCount, setPlayerCount] = useState(2);
@@ -23,7 +22,7 @@ export function Lobby({ onCreate, onJoin }: LobbyProps) {
   const handleCreate = async () => {
     setLoading(true);
     try {
-      await onCreate(selectedColor, selectedTheme, playerCount, withBots, selectedMood);
+      await onCreate(selectedColor, playerCount, withBots, selectedMood);
     } catch (e) {
       console.error(e);
     } finally {
@@ -44,12 +43,6 @@ export function Lobby({ onCreate, onJoin }: LobbyProps) {
   };
 
   const colors: PlayerColor[] = ['red', 'blue', 'green', 'yellow'];
-  const themes: {id: GameTheme, label: string}[] = [
-      { id: 'vibrant', label: 'Vibrant Palette' },
-      { id: 'neon', label: 'Cozy Neon' },
-      { id: 'panda', label: 'Minimal Panda' },
-      { id: 'romantic', label: 'Soft Classic' }
-  ];
   const moods: { id: MomentMood; label: string; helper: string }[] = [
     { id: 'cute', label: 'Cute', helper: 'Sweet and wholesome' },
     { id: 'romantic', label: 'Romantic', helper: 'Flirty and warm' },
@@ -124,16 +117,6 @@ export function Lobby({ onCreate, onJoin }: LobbyProps) {
                     </div>
                  </div>
                  <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Theme</label>
-                    <select 
-                        value={selectedTheme}
-                        onChange={(e) => setSelectedTheme(e.target.value as GameTheme)}
-                        className="w-full bg-white border border-rose-100 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 focus:outline-none"
-                    >
-                       {themes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                 </div>
-                 <div>
                     <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Couple Mood</label>
                     <div className="grid grid-cols-3 gap-2">
                        {moods.map((mood) => (
@@ -191,8 +174,8 @@ export function Lobby({ onCreate, onJoin }: LobbyProps) {
               <span>Real-time</span>
            </div>
            <div className="flex items-center gap-2">
-              <Palette className="w-3 h-3 text-rose-500" />
-              <span>Themes</span>
+              <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
+              <span>Moments</span>
            </div>
         </div>
       </motion.div>

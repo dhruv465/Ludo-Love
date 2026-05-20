@@ -1,3 +1,18 @@
+const DICE_ROLL_SOUND = '/audio/dice-roll.mp3';
+const CAPTURE_SOUND = '/audio/capture-kill.mp3';
+
+function playAudioFile(src: string) {
+  try {
+    const audio = new Audio(src);
+    audio.volume = 0.75;
+    void audio.play().catch(() => {
+      // Browser may block audio until a user gesture.
+    });
+  } catch {
+    // Audio can fail in unsupported or restricted environments.
+  }
+}
+
 export function playSafeSound() {
   try {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -25,4 +40,12 @@ export function playSafeSound() {
   } catch {
     // Browser may block audio until a user gesture.
   }
+}
+
+export function playDiceRollSound() {
+  playAudioFile(DICE_ROLL_SOUND);
+}
+
+export function playCaptureSound() {
+  playAudioFile(CAPTURE_SOUND);
 }
