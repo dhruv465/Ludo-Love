@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import { Lobby } from './components/game/Lobby';
 import { Board } from './components/game/Board';
 import { Dice } from './components/game/Dice';
+import { MomentCard } from './components/game/MomentCard';
 import { useGame } from './hooks/useGame';
 import { motion, AnimatePresence } from 'motion/react';
 import { Heart, Trophy, LogOut, Users, Camera, X } from 'lucide-react';
@@ -25,7 +26,7 @@ function GameContent() {
   const [activeRoomId, setActiveRoomId] = useState<string | null>(() => {
     return localStorage.getItem('ludo_active_room');
   });
-  const { game, rollDice, performMove, startGame, isRolling } = useGame(activeRoomId || '', user?.uid);
+  const { game, rollDice, performMove, startGame, submitMoment, skipMoment, isRolling } = useGame(activeRoomId || '', user?.uid);
   const [showHistory, setShowHistory] = useState(false);
   const [matches, setMatches] = useState<MatchEntry[]>([]);
 
@@ -397,6 +398,9 @@ function GameContent() {
                        <div key={i} className={cn("w-2 h-2 rounded-full", i <= myPiecesFinished ? "bg-rose-500" : "bg-rose-100")} />
                     ))}
                  </div>
+                 <div className="mt-1 text-[9px] font-black uppercase tracking-widest text-slate-300">
+                   {(game.momentMood || 'romantic')} mood
+                 </div>
            </div>
         </div>
 
@@ -461,6 +465,16 @@ function GameContent() {
               </AnimatePresence>
            </div>
         </section>
+
+        <AnimatePresence>
+          {game.activeMoment && game.activeMoment.playerUid === user.uid && (
+            <MomentCard
+              moment={game.activeMoment}
+              onSend={(answer) => submitMoment(user.uid, answer)}
+              onSkip={() => skipMoment(user.uid)}
+            />
+          )}
+        </AnimatePresence>
 
         <div className="fixed bottom-0 left-0 right-0 z-40 w-full border-t border-rose-100 bg-white/96 backdrop-blur-xl shadow-[0_-18px_50px_rgba(244,63,94,0.14)]">
           <div className="relative mx-auto grid min-h-[112px] w-full max-w-[620px] grid-cols-[minmax(0,1fr)_86px_minmax(0,1fr)] items-center gap-2 px-[clamp(10px,3.4vw,18px)] pb-[max(12px,env(safe-area-inset-bottom))] pt-3">
