@@ -54,3 +54,17 @@ test('message formatting keeps prompt and answer compact', () => {
     `${moment.prompt}\nI miss our night calls.`
   );
 });
+
+test('message formatting trims answer whitespace', () => {
+  const moment = createCoupleMoment({
+    event: 'victory',
+    mood: 'cute',
+    playerUid: 'user-1',
+    now: 1710000000000,
+  });
+
+  assert.equal(
+    formatMomentMessage(moment, '  Best match ever.  '),
+    `${moment.prompt}\nBest match ever.`
+  );
+});
