@@ -14,6 +14,20 @@ const PIECE_COLORS: Record<PlayerColor, string> = {
   blue: 'bg-cyan-500 shadow-cyan-500/50',
 };
 
+const SAFE_AURA: Record<PlayerColor, string> = {
+  red: 'border-rose-300/95 bg-rose-200/18 shadow-[0_0_14px_rgba(244,63,94,0.58)]',
+  green: 'border-emerald-300/95 bg-emerald-200/18 shadow-[0_0_14px_rgba(16,185,129,0.58)]',
+  yellow: 'border-amber-300/95 bg-amber-200/20 shadow-[0_0_14px_rgba(245,158,11,0.58)]',
+  blue: 'border-cyan-300/95 bg-cyan-200/18 shadow-[0_0_14px_rgba(6,182,212,0.58)]',
+};
+
+const SAFE_CORE: Record<PlayerColor, string> = {
+  red: 'bg-rose-300/20 shadow-[0_0_10px_rgba(244,63,94,0.45)]',
+  green: 'bg-emerald-300/20 shadow-[0_0_10px_rgba(16,185,129,0.45)]',
+  yellow: 'bg-amber-300/22 shadow-[0_0_10px_rgba(245,158,11,0.45)]',
+  blue: 'bg-cyan-300/20 shadow-[0_0_10px_rgba(6,182,212,0.45)]',
+};
+
 function isSafeBoardPiece(playerColor: PlayerColor, piece: Piece) {
     if (piece.status !== 'board') return false;
     const absolutePosition = (START_POSITIONS[playerColor] + piece.position) % 52;
@@ -181,14 +195,27 @@ export function PieceComponent({ player, targetPiece, isMyTurn, theme, offsetX, 
             )}
 
             {isOnSafeSquare && (
-              <motion.div
-                initial={{ opacity: 0.16, scale: 0.96 }}
-                animate={{ opacity: [0.18, 0.56, 0.18], scale: [0.98, 1.11, 0.98], rotate: [0, 4, -4, 0] }}
-                transition={{ repeat: Infinity, duration: 1.55, ease: "easeInOut" }}
-                className="pointer-events-none absolute -inset-[3px] rounded-full border border-cyan-200/80 bg-cyan-300/12 shadow-[0_0_10px_rgba(34,211,238,0.58)] z-0"
-              >
-                <span className="absolute -right-1.5 -top-2.5 z-20 text-[12px] drop-shadow-md">⚡</span>
-              </motion.div>
+              <div className="pointer-events-none absolute -inset-[22%] z-0 flex items-center justify-center">
+                <motion.div
+                  initial={{ opacity: 0.4, scale: 0.96 }}
+                  animate={{ opacity: [0.42, 0.88, 0.42], scale: [0.96, 1.08, 0.96] }}
+                  transition={{ repeat: Infinity, duration: 1.35, ease: "easeInOut" }}
+                  className={cn(
+                    "absolute inset-0 rounded-full border-2",
+                    SAFE_AURA[player.color]
+                  )}
+                />
+
+                <motion.div
+                  initial={{ opacity: 0.28, scale: 0.86 }}
+                  animate={{ opacity: [0.3, 0.62, 0.3], scale: [0.86, 1.0, 0.86] }}
+                  transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
+                  className={cn(
+                    "absolute inset-[14%] rounded-full",
+                    SAFE_CORE[player.color]
+                  )}
+                />
+              </div>
             )}
 
             {/* 3D Pawn Shape */}

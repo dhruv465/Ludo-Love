@@ -37,6 +37,11 @@ test('piece enters home stretch from the arrow entry square', () => {
   assert.deepEqual(movePiece('red', boardPiece(50), 1), stretchPiece(0));
 });
 
+test('piece must roll exact value to enter home stretch', () => {
+  assert.deepEqual(movePiece('red', boardPiece(49), 2), stretchPiece(0));
+  assert.equal(movePiece('red', boardPiece(50), 2), null);
+});
+
 test('piece must roll exact value to finish', () => {
   assert.deepEqual(movePiece('red', stretchPiece(5), 1), {
     id: 0,

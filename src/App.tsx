@@ -323,7 +323,7 @@ function GameContent() {
                   {isHost && otherPlayers.length > 0 && (
                       <button 
                         onClick={startGame}
-                        className="w-full py-5 bg-rose-500 text-white font-black rounded-2xl hover:bg-rose-600 transition-all shadow-xl shadow-rose-200 animate-bounce"
+                        className="w-full py-5 bg-rose-500 text-white font-black rounded-2xl hover:bg-rose-600 transition-all shadow-xl shadow-rose-200 active:scale-95"
                       >
                          START GAME
                       </button>
@@ -482,13 +482,8 @@ function GameContent() {
             </div>
 
             <div className="flex min-w-0 flex-col items-center gap-1">
-              <div className={cn(
-                "relative flex h-[66px] w-[66px] items-center justify-center rounded-[22px] border-[3px] bg-white p-[3px] shadow-xl",
-                canRoll ? "shadow-rose-200/90" : "shadow-slate-200/70"
-              )}
-                style={{ borderColor: canRoll ? '#ff2f68' : '#e2e8f0' }}
-              >
-                <div className="flex h-full w-full items-center justify-center rounded-[19px] bg-white">
+              <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-[22px] bg-transparent">
+                <div className="flex h-full w-full items-center justify-center rounded-[19px] bg-transparent">
                 <Dice
                   value={game.lastDiceValue}
                   isRolling={isRolling || !!game.isRolling}

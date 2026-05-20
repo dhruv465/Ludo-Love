@@ -6,6 +6,7 @@ import {
   chooseBestLegalMove,
   checkCapture,
   getLegalMoves,
+  getNextPlayerUid,
   getPlayerColorMap,
   movePiece,
   resolveNextTurn,
@@ -101,15 +102,16 @@ export function useGame(roomId: string, userUid?: string) {
           consecutiveSixes: game.consecutiveSixes || 0,
         });
         const legalMoves = getLegalMoves(player.color, game.pieces[uid] || [], diceValue);
-        const shouldPassTurn = turnResult.cancelsMove || legalMoves.length === 0;
-        const nextTurnUid = shouldPassTurn ? turnResult.nextTurnUid : uid;
+        const noLegalMoves = legalMoves.length === 0;
+        const shouldPassTurn = turnResult.cancelsMove || noLegalMoves;
+        const nextTurnUid = noLegalMoves ? getNextPlayerUid(uid, activePlayers) : shouldPassTurn ? turnResult.nextTurnUid : uid;
 
         await updateDoc(gameRef, {
           lastDiceValue: diceValue,
           diceRolled: !shouldPassTurn,
           isRolling: false,
           currentTurn: nextTurnUid,
-          consecutiveSixes: shouldPassTurn ? turnResult.consecutiveSixes : turnResult.consecutiveSixes,
+          consecutiveSixes: noLegalMoves ? 0 : turnResult.consecutiveSixes,
           updatedAt: serverTimestamp()
         });
 

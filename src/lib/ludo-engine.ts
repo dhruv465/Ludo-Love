@@ -29,12 +29,9 @@ export function movePiece(
       return { ...piece, position: nextPos };
     }
 
-    const stretchPos = nextPos - HOME_ENTRY_POSITION - 1;
-    if (stretchPos < HOME_STRETCH_LENGTH) {
-      return { ...piece, status: 'home_stretch', position: stretchPos };
-    }
-    if (stretchPos === HOME_STRETCH_LENGTH) {
-      return { ...piece, status: 'finished', position: 58 };
+    const distanceToHomeEntry = HOME_ENTRY_POSITION - piece.position + 1;
+    if (diceValue === distanceToHomeEntry) {
+      return { ...piece, status: 'home_stretch', position: 0 };
     }
     return null;
   }
