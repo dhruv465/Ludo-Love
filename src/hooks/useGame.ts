@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { doc, onSnapshot, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { GameState, Piece, Player, PlayerColor } from '../lib/ludo-types';
+import { playCaptureSound, playDiceRollSound } from '../lib/audio';
 import {
   chooseBestLegalMove,
   checkCapture,
@@ -87,6 +88,7 @@ export function useGame(roomId: string, userUid?: string) {
     try {
         const gameRef = doc(db, 'rooms', roomId);
         await updateDoc(gameRef, { isRolling: true });
+        playDiceRollSound();
     } catch (e) {
         console.error("Failed to set isRolling", e);
     }
@@ -163,6 +165,7 @@ export function useGame(roomId: string, userUid?: string) {
       );
       
       const victimName = [game.player1, game.player2, game.player3, game.player4].find(p => p?.uid === collision.victimUid)?.name || 'Someone';
+      playCaptureSound();
       await sendMessage(uid, player.name, `Captured ${victimName}'s piece! ⚡`, 'moment');
       
       // Award points for capture

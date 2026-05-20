@@ -3,14 +3,14 @@ import { db } from '../../lib/firebase';
 import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { User } from 'firebase/auth';
 import { motion } from 'motion/react';
-import { Heart, Play, Users, Smartphone, Zap, Palette, ArrowRight } from 'lucide-react';
+import { Heart, Play, Users, Smartphone, Zap, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
-import { PlayerColor, GameTheme } from '../../lib/ludo-types';
+import { PlayerColor } from '../../lib/ludo-types';
 import { cn } from '../../lib/utils';
 
 interface LobbyProps {
   user: User;
-  onCreate: (color: PlayerColor, theme: GameTheme, playerCount: number, withBot: boolean) => void | Promise<void>;
+  onCreate: (color: PlayerColor, playerCount: number, withBot: boolean) => void | Promise<void>;
   onJoin: (roomId: string) => void | Promise<void>;
 }
 
@@ -19,7 +19,6 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
   const [loading, setLoading] = useState(false);
   
   const [selectedColor, setSelectedColor] = useState<PlayerColor>('red');
-  const [selectedTheme, setSelectedTheme] = useState<GameTheme>('vibrant');
 
   const [playerCount, setPlayerCount] = useState(2);
   const [withBots, setWithBots] = useState(false);
@@ -27,7 +26,7 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
   const handleCreate = async () => {
     setLoading(true);
     try {
-      await onCreate(selectedColor, selectedTheme, playerCount, withBots);
+      await onCreate(selectedColor, playerCount, withBots);
     } catch (e) {
       console.error(e);
     } finally {
@@ -48,12 +47,6 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
   };
 
   const colors: PlayerColor[] = ['red', 'blue', 'green', 'yellow'];
-  const themes: {id: GameTheme, label: string}[] = [
-      { id: 'vibrant', label: 'Vibrant Palette' },
-      { id: 'neon', label: 'Cozy Neon' },
-      { id: 'panda', label: 'Minimal Panda' },
-      { id: 'romantic', label: 'Soft Classic' }
-  ];
 
   return (
     <div className="flex flex-col items-center justify-center p-6 min-h-[calc(100vh-64px-48px)] text-[#000]">
@@ -122,16 +115,6 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
                        ))}
                     </div>
                  </div>
-                 <div>
-                    <label className="text-[10px] font-black uppercase text-slate-400 mb-2 block">Theme</label>
-                    <select 
-                        value={selectedTheme}
-                        onChange={(e) => setSelectedTheme(e.target.value as GameTheme)}
-                        className="w-full bg-white border border-rose-100 rounded-xl px-4 py-2 text-xs font-bold text-slate-600 focus:outline-none"
-                    >
-                       {themes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                 </div>
                  <button
                     onClick={handleCreate}
                     disabled={loading}
@@ -169,8 +152,8 @@ export function Lobby({ user, onCreate, onJoin }: LobbyProps) {
               <span>Real-time</span>
            </div>
            <div className="flex items-center gap-2">
-              <Palette className="w-3 h-3 text-rose-500" />
-              <span>Themes</span>
+              <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
+              <span>Moments</span>
            </div>
         </div>
       </motion.div>
